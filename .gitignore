@@ -1,0 +1,5 @@
+# Generated images (recreated at runtime; keep the repo small)
+assets/gen/
+
+__pycache__/
+*.pyc
