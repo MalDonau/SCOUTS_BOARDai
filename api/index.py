@@ -5,8 +5,8 @@ import json, base64, time, os, mimetypes, urllib.request, urllib.error
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Optional password gate (HTTP Basic Auth). Set APP_PASSWORD env var on Vercel to enable.
-APP_USER = os.environ.get('APP_USER', 'scouts')
-APP_PASSWORD = os.environ.get('APP_PASSWORD', '')
+APP_USER = os.environ.get('APP_USER', 'scouts').lstrip('﻿').strip()
+APP_PASSWORD = os.environ.get('APP_PASSWORD', '').lstrip('﻿').strip()
 
 
 def forward(url, data, headers):
