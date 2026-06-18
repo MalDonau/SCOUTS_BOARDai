@@ -1156,39 +1156,31 @@ function onBoardToolbar(e){
   else if(a==='reset'){board.panX=0;board.panY=0;board.zoom=1;applyTransform();saveBoard()}
   else if(a==='dl')downloadSelectedImages();
 }
-/* ---- Download selected images (single file, or a ZIP for many) ---- */
+/* ---- Download selected images individually; user picks the destination folder ---- */
 function dataURLtoBytes(durl){const i=durl.indexOf(',');const bin=atob(durl.slice(i+1));const arr=new Uint8Array(bin.length);for(let k=0;k<bin.length;k++)arr[k]=bin.charCodeAt(k);return arr}
-function _crc32(bytes){let crc=~0;for(let i=0;i<bytes.length;i++){crc^=bytes[i];for(let j=0;j<8;j++)crc=(crc>>>1)^(0xEDB88320&-(crc&1))}return ~crc>>>0}
-function _u16(n){return new Uint8Array([n&0xFF,(n>>8)&0xFF])}
-function _u32(n){return new Uint8Array([n&0xFF,(n>>8)&0xFF,(n>>16)&0xFF,(n>>>24)&0xFF])}
-function _concat(arrs){let len=0;arrs.forEach(a=>len+=a.length);const out=new Uint8Array(len);let o=0;arrs.forEach(a=>{out.set(a,o);o+=a.length});return out}
-function makeZip(files){ // files: [{name, data:Uint8Array}] — STORE method (no compression)
-  const enc=new TextEncoder();const locals=[],central=[];let offset=0;
-  for(const f of files){
-    const name=enc.encode(f.name),crc=_crc32(f.data),size=f.data.length;
-    const lh=_concat([_u32(0x04034b50),_u16(20),_u16(0),_u16(0),_u16(0),_u16(0),_u32(crc),_u32(size),_u32(size),_u16(name.length),_u16(0),name,f.data]);
-    locals.push(lh);
-    central.push(_concat([_u32(0x02014b50),_u16(20),_u16(20),_u16(0),_u16(0),_u16(0),_u16(0),_u32(crc),_u32(size),_u32(size),_u16(name.length),_u16(0),_u16(0),_u16(0),_u16(0),_u32(0),_u32(offset),name]));
-    offset+=lh.length;
-  }
-  let cdSize=0;central.forEach(c=>cdSize+=c.length);
-  const end=_concat([_u32(0x06054b50),_u16(0),_u16(0),_u16(files.length),_u16(files.length),_u32(cdSize),_u32(offset),_u16(0)]);
-  return new Blob([...locals,...central,end],{type:'application/zip'});
+function triggerDownload(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000)}
+async function resolveToBytes(it){
+  let durl=isIdb(it.src)?resolveImg(it.src):it.src;
+  if(isIdb(it.src)&&!durl){const d=await idbGet(idbId(it.src));if(d){imgCache[idbId(it.src)]=d;durl=d}}
+  if(!durl||durl.indexOf(',')<0)return null; // not an inline dataURL
+  const m=/^data:image\/([a-z0-9.+-]+)/i.exec(durl);const ext=m?m[1].toLowerCase().replace('jpeg','jpg'):'png';
+  return {ext,bytes:dataURLtoBytes(durl)};
 }
-function triggerDownload(blobOrUrl,name){const url=typeof blobOrUrl==='string'?blobOrUrl:URL.createObjectURL(blobOrUrl);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();if(typeof blobOrUrl!=='string')setTimeout(()=>URL.revokeObjectURL(url),2000)}
 async function downloadSelectedImages(){
   const imgs=selectedImages();if(!imgs.length)return;
   const files=[];let idx=1;
-  for(const it of imgs){
-    let durl=isIdb(it.src)?resolveImg(it.src):it.src;
-    if(isIdb(it.src)&&!durl){const d=await idbGet(idbId(it.src));if(d){imgCache[idbId(it.src)]=d;durl=d}}
-    if(!durl||durl.indexOf(',')<0)continue; // skip anything that isn't an inline dataURL
-    const m=/^data:image\/([a-z0-9.+-]+)/i.exec(durl);const ext=m?m[1].toLowerCase().replace('jpeg','jpg'):'png';
-    files.push({name:`scouts-${String(idx).padStart(2,'0')}.${ext}`,data:dataURLtoBytes(durl)});idx++;
-  }
+  for(const it of imgs){const r=await resolveToBytes(it);if(r)files.push({name:`scouts-${String(idx++).padStart(2,'0')}.${r.ext}`,data:r.bytes})}
   if(!files.length)return;
-  if(files.length===1){triggerDownload(new Blob([files[0].data]),files[0].name);return}
-  triggerDownload(makeZip(files),'scouts-images.zip');
+  // Preferred: let the user choose the destination folder, save each file there (no zip)
+  if(window.showDirectoryPicker){
+    try{
+      const dir=await showDirectoryPicker({id:'scouts-dl',mode:'readwrite',startIn:'downloads'});
+      for(const f of files){const fh=await dir.getFileHandle(f.name,{create:true});const w=await fh.createWritable();await w.write(f.data);await w.close()}
+      return;
+    }catch(e){if(e&&e.name==='AbortError')return; /* not supported / blocked → fall back below */}
+  }
+  // Fallback (Firefox/Safari): download each file to the default Downloads folder
+  for(const f of files){triggerDownload(new Blob([f.data]),f.name);await new Promise(r=>setTimeout(r,250))}
 }
 
 /* ============ Board chat (Claude → prompt nodes) ============ */
