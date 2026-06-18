@@ -3,3 +3,5 @@ assets/gen/
 
 __pycache__/
 *.pyc
+
+.vercel
