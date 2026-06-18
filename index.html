@@ -242,7 +242,9 @@
   .inode img{width:100%;height:100%;object-fit:cover;display:block}
   .inode.iloading{display:flex;align-items:center;justify-content:center;background:var(--panel);border-style:dashed;border-color:var(--purple)}
   .inode.iloading .pn-err{font-size:11px;color:#ff7a70;padding:0 8px;text-align:center}
-  .iprov{margin-top:5px;font-size:10.5px;font-weight:700;letter-spacing:.4px;text-align:center;color:var(--purple-lt);text-transform:uppercase}
+  .iprov{margin-top:5px;font-size:10.5px;font-weight:700;letter-spacing:.4px;text-align:center;color:var(--purple-lt);text-transform:uppercase;cursor:pointer}
+  .iprov.iprov-empty{color:var(--muted);font-weight:600;opacity:.5;text-transform:none;letter-spacing:0;border:1px dashed var(--line);border-radius:7px;padding:2px 0}
+  .iprov.iprov-empty:hover{opacity:.95;border-color:var(--purple);color:var(--purple-lt)}
   /* connection ports + cables */
   .bport{position:absolute;right:-8px;top:50%;transform:translateY(-50%);width:15px;height:15px;border-radius:50%;
     background:var(--purple);border:2px solid var(--bg);cursor:crosshair;opacity:0;transition:opacity .12s;z-index:5}
@@ -922,7 +924,9 @@ function nodeInner(it){
     const real=resolveImg(it.src);
     if(isIdb(it.src)&&!real)return loading; // still loading from IndexedDB
     const pname=it.prov==='gemini'?'Nano Banana 2':it.prov==='openai'?'ChatGPT 2':'';
-    const cap=pname?`<div class="iprov"${it.color?` style="color:${it.color}"`:''}>${pname}</div>`:'';
+    const cap=pname
+      ? `<div class="iprov" data-setprov="${it.id}"${it.color?` style="color:${it.color}"`:''} title="Click para cambiar el modelo">${pname}</div>`
+      : `<div class="iprov iprov-empty" data-setprov="${it.id}" title="Click para marcar el modelo">marcar modelo</div>`;
     return `<div class="inode" style="width:${w}px;height:${h}px;${bc}"><img src="${real||it.src}" alt="" draggable="false" data-imgbig="${it.id}"></div>${cap}`;
   }
   return `<div class="blabel">${bEscape(it.text||'')}</div>`;
@@ -1427,6 +1431,7 @@ boardVp.addEventListener('wheel',onBoardWheel,{passive:false});
 boardVp.addEventListener('click',e=>{
   const d=e.target.closest('[data-bdel]');if(d){e.stopPropagation();removeItem(d.dataset.bdel);return}
   const g=e.target.closest('[data-gen]');if(g){e.stopPropagation();generateFromPrompt(g.dataset.genid,g.dataset.gen);return}
+  const sp=e.target.closest('[data-setprov]');if(sp){e.stopPropagation();const it=board.items.find(i=>i.id===sp.dataset.setprov);if(it){it.prov=it.prov==='gemini'?'openai':it.prov==='openai'?'':'gemini';if(!it.prov)delete it.prov;saveBoard();renderBoard()}return}
   const im=e.target.closest('[data-imgbig]');if(im){const it=board.items.find(i=>i.id===im.dataset.imgbig);if(it){const r=resolveImg(it.src);if(r)openLightbox(r);else if(isIdb(it.src))idbGet(idbId(it.src)).then(d=>{if(d){imgCache[idbId(it.src)]=d;openLightbox(d)}})}}
 });
 boardVp.addEventListener('input',e=>{const b=e.target.closest('[data-batchid]');if(b){const it=board.items.find(i=>i.id===b.dataset.batchid);if(it){it.batch=Math.max(1,Math.min(8,parseInt(b.value)||1));saveBoard()}}});
