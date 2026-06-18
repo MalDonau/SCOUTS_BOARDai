@@ -1173,14 +1173,20 @@ async function downloadSelectedImages(){
   if(!files.length)return;
   // Preferred: let the user choose the destination folder, save each file there (no zip)
   if(window.showDirectoryPicker){
-    try{
-      const dir=await showDirectoryPicker({id:'scouts-dl',mode:'readwrite',startIn:'downloads'});
-      for(const f of files){const fh=await dir.getFileHandle(f.name,{create:true});const w=await fh.createWritable();await w.write(f.data);await w.close()}
-      return;
-    }catch(e){if(e&&e.name==='AbortError')return; /* not supported / blocked → fall back below */}
+    let dir=null;
+    try{dir=await showDirectoryPicker({id:'scouts-dl',mode:'readwrite',startIn:'downloads'})}
+    catch(e){if(e&&e.name==='AbortError')return; dir=null}
+    if(dir){
+      try{
+        if(dir.requestPermission){const p=await dir.requestPermission({mode:'readwrite'});if(p!=='granted')throw new Error('permiso de escritura denegado')}
+        let saved=0;
+        for(const f of files){const fh=await dir.getFileHandle(f.name,{create:true});const w=await fh.createWritable();await w.write(new Blob([f.data]));await w.close();saved++}
+        return;
+      }catch(e){alert('No se pudo guardar en la carpeta elegida:\n'+(e&&e.message||e)+'\n\nLas descargo a la carpeta de Descargas.')}
+    }
   }
-  // Fallback (Firefox/Safari): download each file to the default Downloads folder
-  for(const f of files){triggerDownload(new Blob([f.data]),f.name);await new Promise(r=>setTimeout(r,250))}
+  // Fallback (no FS access / write failed): download each file to the default Downloads folder
+  for(const f of files){triggerDownload(new Blob([f.data]),f.name);await new Promise(r=>setTimeout(r,300))}
 }
 
 /* ============ Board chat (Claude → prompt nodes) ============ */
