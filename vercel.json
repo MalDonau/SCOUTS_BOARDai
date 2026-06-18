@@ -1,0 +1,11 @@
+{
+  "functions": {
+    "api/*.py": { "maxDuration": 60 }
+  },
+  "rewrites": [
+    { "source": "/gemini", "destination": "/api/gemini" },
+    { "source": "/claude", "destination": "/api/claude" },
+    { "source": "/openai", "destination": "/api/openai" },
+    { "source": "/openai_edit", "destination": "/api/openai_edit" }
+  ]
+}
