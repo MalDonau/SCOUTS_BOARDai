@@ -1034,7 +1034,9 @@ function onBoardPointerDown(e){
   if(e.target.closest('#boardProjects'))return;
   if(e.target.closest('[data-bdel]'))return;
   if(e.target.closest('[data-gen]'))return;
-  if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))return;
+  if(e.target.closest('[data-ar]'))return;
+  if(e.target.closest('[data-setprov]'))return;
+  if(/^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(e.target.tagName))return;
   const vp=document.getElementById('boardVp'),r=vp.getBoundingClientRect();
   const sx=e.clientX-r.left,sy=e.clientY-r.top;
   try{vp.setPointerCapture(e.pointerId)}catch(_){}
