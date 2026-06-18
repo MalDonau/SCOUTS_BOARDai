@@ -221,6 +221,8 @@
   .board-toolbar button{background:var(--panel-2);border:1px solid var(--line);color:var(--text);
     font-family:var(--sans);font-weight:600;font-size:13px;padding:7px 13px;border-radius:9px;cursor:pointer;transition:.15s}
   .board-toolbar button:hover{border-color:var(--purple)}
+  .board-toolbar button:disabled{opacity:.4;cursor:not-allowed;border-color:var(--line)}
+  .board-toolbar button#btDl:not(:disabled){background:var(--purple);color:#fff;border-color:var(--purple)}
   .board-toolbar .bsep{width:1px;background:var(--line);margin:2px}
   .board-hint{position:absolute;top:16px;left:50%;transform:translateX(-50%);z-index:20;color:var(--muted);
     font-size:12px;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:5px 14px;pointer-events:none}
@@ -413,7 +415,7 @@ const CONCEPT={
 const T={
   es:{
     nav:{explore:'Exploración',ref:'Referencia',brief:'Brief',marca:'Guía de marca',ilustra:'Ilustración',aprob:'Aprobación',sys:'Sistema',settings:'Ajustes',board:'Board'},
-    board:{newText:'Texto nuevo',addScout:'+ Scout',addText:'+ Texto',zoomIn:'+',zoomOut:'−',reset:'Reset',hint:'Space+arrastrar: mano · arrastrar vacío: seleccionar · arrastrar nodo: mover · Alt: duplicar · Supr: borrar · rueda: zoom',project:'Proyecto',newProject:'Nuevo proyecto',renameProject:'Renombrar proyecto',deleteProject:'Eliminar proyecto',renamePrompt:'Nombre del proyecto:',deleteConfirm:'¿Eliminar este proyecto y todo su contenido?'},
+    board:{newText:'Texto nuevo',addScout:'+ Scout',addText:'+ Texto',download:'⬇ Descargar',zoomIn:'+',zoomOut:'−',reset:'Reset',hint:'Space+arrastrar: mano · arrastrar vacío: seleccionar · arrastrar nodo: mover · Alt: duplicar · Supr: borrar · rueda: zoom',project:'Proyecto',newProject:'Nuevo proyecto',renameProject:'Renombrar proyecto',deleteProject:'Eliminar proyecto',renamePrompt:'Nombre del proyecto:',deleteConfirm:'¿Eliminar este proyecto y todo su contenido?'},
     chat:{title:'Asistente de prompts',ph:'Contá tu idea de imagen…',send:'Enviar',thinking:'Pensando…',addNode:'➕ Agregar como nodo',noKey:'Cargá tu API key de Claude en Ajustes para usar el chat.',err:'Error',clear:'Limpiar',empty:'Contame qué imagen querés y te armo un prompt. Después lo agregás como nodo al lienzo.',fromImg:'Describí esta imagen y convertila en un prompt de generación de imagen.',attach1:'1 imagen del board adjunta',attachN:'{n} imágenes del board adjuntas',editing:'Editando',editDefault:'Mejorá y enriquecé este prompt.',apply:'✏️ Aplicar al nodo'},
     imgen:{gemini:'🍌 Gemini',openai:'🤖 OpenAI',loading:'generando…',noGem:'Falta la API key de Gemini (Ajustes).',noOai:'Falta la API key de OpenAI (Ajustes).',batch:'Cantidad de imágenes (batch)'},
     ex:{kicker:'Exploración de personajes',desc:'Un sistema de personajes-guía por área de interés. Entrá a un Scout para ver su ficha, subir opciones y aplicarlas a los placements.'},
@@ -439,7 +441,7 @@ const T={
   },
   en:{
     nav:{explore:'Explore',ref:'Reference',brief:'Brief',marca:'Brand guide',ilustra:'Illustration',aprob:'Approval',sys:'System',settings:'Settings',board:'Board'},
-    board:{newText:'New text',addScout:'+ Scout',addText:'+ Text',zoomIn:'+',zoomOut:'−',reset:'Reset',hint:'Space+drag: pan · drag empty: select · drag node: move · Alt: duplicate · Del: delete · wheel: zoom',project:'Project',newProject:'New project',renameProject:'Rename project',deleteProject:'Delete project',renamePrompt:'Project name:',deleteConfirm:'Delete this project and all its content?'},
+    board:{newText:'New text',addScout:'+ Scout',addText:'+ Text',download:'⬇ Download',zoomIn:'+',zoomOut:'−',reset:'Reset',hint:'Space+drag: pan · drag empty: select · drag node: move · Alt: duplicate · Del: delete · wheel: zoom',project:'Project',newProject:'New project',renameProject:'Rename project',deleteProject:'Delete project',renamePrompt:'Project name:',deleteConfirm:'Delete this project and all its content?'},
     chat:{title:'Prompt assistant',ph:'Describe your image idea…',send:'Send',thinking:'Thinking…',addNode:'➕ Add as node',noKey:'Add your Claude API key in Settings to use the chat.',err:'Error',clear:'Clear',empty:'Tell me what image you want and I\'ll craft a prompt. Then add it as a node to the canvas.',fromImg:'Describe this image and turn it into an image-generation prompt.',attach1:'1 board image attached',attachN:'{n} board images attached',editing:'Editing',editDefault:'Improve and enrich this prompt.',apply:'✏️ Apply to node'},
     imgen:{gemini:'🍌 Gemini',openai:'🤖 OpenAI',loading:'generating…',noGem:'Missing Gemini API key (Settings).',noOai:'Missing OpenAI API key (Settings).',batch:'Number of images (batch)'},
     ex:{kicker:'Character exploration',desc:'A system of guide-characters by area of interest. Open a Scout to see its sheet, upload options and apply them to placements.'},
@@ -889,7 +891,7 @@ function renderProjects(){
     `<button id="bpDelete" title="${b.deleteProject}">🗑</button>`;
 }
 let bDrag=null,bSaveT=null,spaceDown=false,selection=new Set();
-function renderSelection(){document.querySelectorAll('#boardWorld .bnode').forEach(el=>el.classList.toggle('sel',selection.has(el.dataset.bid)));if(typeof renderChatAttach==='function')renderChatAttach()}
+function renderSelection(){document.querySelectorAll('#boardWorld .bnode').forEach(el=>el.classList.toggle('sel',selection.has(el.dataset.bid)));if(typeof renderChatAttach==='function')renderChatAttach();if(typeof updateDownloadBtn==='function')updateDownloadBtn()}
 function bWheelSave(){clearTimeout(bSaveT);bSaveT=setTimeout(saveBoard,400)}
 
 function applyTransform(){
@@ -900,10 +902,14 @@ function renderBoardToolbar(){
   const tb=document.getElementById('boardToolbar');if(!tb)return;
   const b=T[lang].board;
   tb.innerHTML=`<button data-bt="scout">${b.addScout}</button><button data-bt="text">${b.addText}</button>`+
+    `<div class="bsep"></div><button data-bt="dl" id="btDl" disabled>${b.download} (0)</button>`+
     `<div class="bsep"></div><button data-bt="zout">${b.zoomOut}</button><button data-bt="zin">${b.zoomIn}</button>`+
     `<div class="bsep"></div><button data-bt="reset">${b.reset}</button>`;
   const hint=document.getElementById('boardHint');if(hint)hint.textContent=b.hint;
+  updateDownloadBtn();
 }
+function selectedImages(){return [...selection].map(id=>board.items.find(i=>i.id===id)).filter(it=>it&&it.type==='image'&&it.src)}
+function updateDownloadBtn(){const btn=document.getElementById('btDl');if(!btn)return;const n=selectedImages().length;btn.disabled=n===0;btn.textContent=`${T[lang].board.download} (${n})`}
 function nodeInner(it){
   const t=T[lang];
   if(it.type==='scout'){
@@ -1148,6 +1154,41 @@ function onBoardToolbar(e){
   else if(a==='zin')zoomBy(1.2);
   else if(a==='zout')zoomBy(1/1.2);
   else if(a==='reset'){board.panX=0;board.panY=0;board.zoom=1;applyTransform();saveBoard()}
+  else if(a==='dl')downloadSelectedImages();
+}
+/* ---- Download selected images (single file, or a ZIP for many) ---- */
+function dataURLtoBytes(durl){const i=durl.indexOf(',');const bin=atob(durl.slice(i+1));const arr=new Uint8Array(bin.length);for(let k=0;k<bin.length;k++)arr[k]=bin.charCodeAt(k);return arr}
+function _crc32(bytes){let crc=~0;for(let i=0;i<bytes.length;i++){crc^=bytes[i];for(let j=0;j<8;j++)crc=(crc>>>1)^(0xEDB88320&-(crc&1))}return ~crc>>>0}
+function _u16(n){return new Uint8Array([n&0xFF,(n>>8)&0xFF])}
+function _u32(n){return new Uint8Array([n&0xFF,(n>>8)&0xFF,(n>>16)&0xFF,(n>>>24)&0xFF])}
+function _concat(arrs){let len=0;arrs.forEach(a=>len+=a.length);const out=new Uint8Array(len);let o=0;arrs.forEach(a=>{out.set(a,o);o+=a.length});return out}
+function makeZip(files){ // files: [{name, data:Uint8Array}] — STORE method (no compression)
+  const enc=new TextEncoder();const locals=[],central=[];let offset=0;
+  for(const f of files){
+    const name=enc.encode(f.name),crc=_crc32(f.data),size=f.data.length;
+    const lh=_concat([_u32(0x04034b50),_u16(20),_u16(0),_u16(0),_u16(0),_u16(0),_u32(crc),_u32(size),_u32(size),_u16(name.length),_u16(0),name,f.data]);
+    locals.push(lh);
+    central.push(_concat([_u32(0x02014b50),_u16(20),_u16(20),_u16(0),_u16(0),_u16(0),_u16(0),_u32(crc),_u32(size),_u32(size),_u16(name.length),_u16(0),_u16(0),_u16(0),_u16(0),_u32(0),_u32(offset),name]));
+    offset+=lh.length;
+  }
+  let cdSize=0;central.forEach(c=>cdSize+=c.length);
+  const end=_concat([_u32(0x06054b50),_u16(0),_u16(0),_u16(files.length),_u16(files.length),_u32(cdSize),_u32(offset),_u16(0)]);
+  return new Blob([...locals,...central,end],{type:'application/zip'});
+}
+function triggerDownload(blobOrUrl,name){const url=typeof blobOrUrl==='string'?blobOrUrl:URL.createObjectURL(blobOrUrl);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();if(typeof blobOrUrl!=='string')setTimeout(()=>URL.revokeObjectURL(url),2000)}
+async function downloadSelectedImages(){
+  const imgs=selectedImages();if(!imgs.length)return;
+  const files=[];let idx=1;
+  for(const it of imgs){
+    let durl=isIdb(it.src)?resolveImg(it.src):it.src;
+    if(isIdb(it.src)&&!durl){const d=await idbGet(idbId(it.src));if(d){imgCache[idbId(it.src)]=d;durl=d}}
+    if(!durl||durl.indexOf(',')<0)continue; // skip anything that isn't an inline dataURL
+    const m=/^data:image\/([a-z0-9.+-]+)/i.exec(durl);const ext=m?m[1].toLowerCase().replace('jpeg','jpg'):'png';
+    files.push({name:`scouts-${String(idx).padStart(2,'0')}.${ext}`,data:dataURLtoBytes(durl)});idx++;
+  }
+  if(!files.length)return;
+  if(files.length===1){triggerDownload(new Blob([files[0].data]),files[0].name);return}
+  triggerDownload(makeZip(files),'scouts-images.zip');
 }
 
 /* ============ Board chat (Claude → prompt nodes) ============ */
