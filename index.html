@@ -1461,6 +1461,23 @@ boardVp.addEventListener('dragstart',e=>e.preventDefault());
 boardVp.addEventListener('dragover',onBoardDragover);
 boardVp.addEventListener('dragleave',e=>{if(e.target===boardVp)boardVp.classList.remove('dropping')});
 boardVp.addEventListener('drop',onBoardDrop);
+let _lastBoardScreen=null;
+boardVp.addEventListener('mousemove',e=>{_lastBoardScreen={x:e.clientX,y:e.clientY}});
+document.addEventListener('paste',e=>{
+  if(currentView!=='board')return;
+  const ae=document.activeElement;
+  if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable))return; // let text paste work normally
+  const cd=e.clipboardData;if(!cd)return;
+  let files=[];
+  if(cd.files&&cd.files.length)files=[...cd.files].filter(f=>f.type.startsWith('image/'));
+  if(!files.length&&cd.items)files=[...cd.items].filter(i=>i.kind==='file'&&i.type.startsWith('image/')).map(i=>i.getAsFile()).filter(Boolean);
+  if(!files.length)return;
+  e.preventDefault();
+  let wx,wy;const r=boardVp.getBoundingClientRect();
+  if(_lastBoardScreen){wx=((_lastBoardScreen.x-r.left)-board.panX)/board.zoom-150;wy=((_lastBoardScreen.y-r.top)-board.panY)/board.zoom-150;}
+  else{const c=viewportCenterWorld();wx=c.x-150;wy=c.y-150;}
+  dropImages(files,wx,wy);
+});
 document.getElementById('boardToolbar').addEventListener('click',onBoardToolbar);
 const boardProjects=document.getElementById('boardProjects');
 boardProjects.addEventListener('change',e=>{if(e.target.id==='bpSelect')switchBoard(e.target.value)});
