@@ -1169,8 +1169,10 @@ async function resolveToBytes(it){
 function boardToast(msg){let t=document.getElementById('boardToast');if(!t){t=document.createElement('div');t.id='boardToast';t.style.cssText='position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:#16161f;color:#fff;border:1px solid #7D2EFF;padding:10px 16px;border-radius:10px;z-index:99999;font-size:13px;font-weight:600;box-shadow:0 8px 28px rgba(0,0,0,.55);transition:opacity .4s;max-width:80vw;text-align:center';document.body.appendChild(t)}t.textContent=msg;t.style.opacity='1';clearTimeout(t._h);t._h=setTimeout(()=>{t.style.opacity='0'},4000)}
 async function downloadSelectedImages(){
   const imgs=selectedImages();if(!imgs.length)return;
+  const d=new Date();const p2=n=>String(n).padStart(2,'0');
+  const stamp=`${d.getFullYear()}${p2(d.getMonth()+1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}`;
   const files=[];let idx=1;
-  for(const it of imgs){const r=await resolveToBytes(it);if(r)files.push({name:`scouts-${String(idx++).padStart(2,'0')}.${r.ext}`,data:r.bytes})}
+  for(const it of imgs){const r=await resolveToBytes(it);if(r)files.push({name:`scouts-${stamp}-${String(idx++).padStart(2,'0')}.${r.ext}`,data:r.bytes})}
   if(!files.length){alert('No hay imágenes válidas para descargar (puede que la fuente sea una URL remota y no datos inline).');return}
   // Preferred: let the user choose the destination folder, save each file there (no zip)
   if(window.showDirectoryPicker){
