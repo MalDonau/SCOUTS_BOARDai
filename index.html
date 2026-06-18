@@ -242,6 +242,7 @@
   .inode img{width:100%;height:100%;object-fit:cover;display:block}
   .inode.iloading{display:flex;align-items:center;justify-content:center;background:var(--panel);border-style:dashed;border-color:var(--purple)}
   .inode.iloading .pn-err{font-size:11px;color:#ff7a70;padding:0 8px;text-align:center}
+  .iprov{margin-top:5px;font-size:10.5px;font-weight:700;letter-spacing:.4px;text-align:center;color:var(--purple-lt);text-transform:uppercase}
   /* connection ports + cables */
   .bport{position:absolute;right:-8px;top:50%;transform:translateY(-50%);width:15px;height:15px;border-radius:50%;
     background:var(--purple);border:2px solid var(--bg);cursor:crosshair;opacity:0;transition:opacity .12s;z-index:5}
@@ -272,7 +273,9 @@
   .bc-head .bc-actions{display:flex;gap:8px;align-items:center}
   .bc-head button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;font-weight:600;padding:2px 4px}
   .bc-head button:hover{color:var(--text)}
-  .bc-body{padding:12px;overflow-y:auto;max-height:46vh;display:flex;flex-direction:column;gap:10px}
+  .bc-body{padding:12px;overflow-y:auto;max-height:46vh;display:flex;flex-direction:column;gap:10px;
+    user-select:text;-webkit-user-select:text;cursor:auto}
+  .bc-body .bc-msg,.bc-body .bc-prompt .bp-txt{cursor:text}
   .bc-empty{color:var(--muted);font-size:12.5px;line-height:1.5}
   .bc-msg{font-size:13px;line-height:1.45;border-radius:11px;padding:8px 11px;max-width:92%;white-space:pre-wrap}
   .bc-msg.user{align-self:flex-end;background:var(--purple);color:#fff}
@@ -907,7 +910,9 @@ function nodeInner(it){
   if(it.type==='prompt'){
     const g=t.imgen;
     const foot=`<div class="pn-foot"><input class="pn-batch" type="number" min="1" max="8" value="${it.batch||1}" data-batchid="${it.id}" title="${g.batch}"><button class="pn-gen" data-gen="gemini" data-genid="${it.id}">${g.gemini}</button><button class="pn-gen" data-gen="openai" data-genid="${it.id}">${g.openai}</button></div>`;
-    return `<div class="pnode"><div class="pn-tag">prompt</div><div class="pn-txt">${bEscape(it.text||'')}</div>${foot}</div>`;
+    const pst=it.color?` style="border-color:${it.color};box-shadow:0 0 0 1px ${it.color}55"`:'';
+    const tst=it.color?` style="color:${it.color}"`:'';
+    return `<div class="pnode"${pst}><div class="pn-tag"${tst}>prompt</div><div class="pn-txt">${bEscape(it.text||'')}</div>${foot}</div>`;
   }
   if(it.type==='image'){
     const w=it.w||230,h=it.h||230;
@@ -916,12 +921,16 @@ function nodeInner(it){
     if(it._loading||!it.src)return loading;
     const real=resolveImg(it.src);
     if(isIdb(it.src)&&!real)return loading; // still loading from IndexedDB
-    return `<div class="inode" style="width:${w}px;height:${h}px;${bc}"><img src="${real||it.src}" alt="" draggable="false" data-imgbig="${it.id}"></div>`;
+    const pname=it.prov==='gemini'?'Nano Banana 2':it.prov==='openai'?'ChatGPT 2':'';
+    const cap=pname?`<div class="iprov"${it.color?` style="color:${it.color}"`:''}>${pname}</div>`:'';
+    return `<div class="inode" style="width:${w}px;height:${h}px;${bc}"><img src="${real||it.src}" alt="" draggable="false" data-imgbig="${it.id}"></div>${cap}`;
   }
   return `<div class="blabel">${bEscape(it.text||'')}</div>`;
 }
+function ensurePromptColors(){let ch=false;board.items.forEach(it=>{if(it.type==='prompt'&&!it.color){it.color=nextGenColor();ch=true}});if(ch)saveBoard()}
 function renderBoard(){
   const world=document.getElementById('boardWorld');if(!world)return;
+  ensurePromptColors();
   // preload any IndexedDB images not yet in cache, then re-render
   const missing=[];
   board.items.forEach(it=>{if(it.type==='image'&&isIdb(it.src)){const id=idbId(it.src);if(!(id in imgCache)){imgCache[id]=undefined;missing.push(id)}}});
@@ -1169,7 +1178,7 @@ function renderChatAttach(){
 }
 function addPromptNode(text){
   const c=viewportCenterWorld();
-  board.items.push({id:bid(),type:'prompt',text:text,x:Math.round(c.x-120),y:Math.round(c.y-40)});
+  board.items.push({id:bid(),type:'prompt',text:text,x:Math.round(c.x-120),y:Math.round(c.y-40),color:nextGenColor()});
   saveBoard();renderBoard();
 }
 function selectedImageSrcs(){return [...selection].map(id=>board.items.find(i=>i.id===id)).filter(it=>it&&it.type==='image'&&it.src).map(it=>it.src)}
@@ -1309,9 +1318,9 @@ async function generateFromPrompt(id,provider){
   const it=board.items.find(i=>i.id===id);if(!it)return;
   const {prompt,refImages,baseImages}=gatherGenInputs(it);
   const n=Math.max(1,Math.min(8,parseInt(it.batch)||1));
-  const color=nextGenColor();
+  const color=it.color||(it.color=nextGenColor());
   const phs=[];
-  for(let i=0;i<n;i++){const slot=freeImageSlot(it);const ph={id:bid(),type:'image',src:'',_loading:true,x:slot.x,y:slot.y,color};board.items.push(ph);phs.push(ph.id)}
+  for(let i=0;i<n;i++){const slot=freeImageSlot(it);const ph={id:bid(),type:'image',src:'',_loading:true,x:slot.x,y:slot.y,color,prov:provider};board.items.push(ph);phs.push(ph.id)}
   renderBoard();
   for(const phId of phs){
     try{

@@ -1,4 +1,5 @@
 assets/gen/
 proxy.py
+proxy_supervisor.pyw
 Procfile
 *.md

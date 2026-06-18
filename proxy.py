@@ -1,4 +1,4 @@
-import os, json, base64, time, urllib.request, urllib.error
+import os, sys, json, base64, time, urllib.request, urllib.error
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 # serve files from this script's folder
@@ -10,6 +10,11 @@ APP_USER = os.environ.get('APP_USER', 'scouts')
 APP_PASSWORD = os.environ.get('APP_PASSWORD', '')
 
 class H(SimpleHTTPRequestHandler):
+    def log_message(self, *args):
+        # Under pythonw.exe sys.stderr is None; the default logger would crash
+        # each request thread. Silence it (we don't need access logs).
+        pass
+
     def end_headers(self):
         self.send_header('Cache-Control', 'no-store, max-age=0')
         super().end_headers()
@@ -174,5 +179,10 @@ class H(SimpleHTTPRequestHandler):
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
     host = os.environ.get('HOST', '0.0.0.0')
-    print('Scouts proxy running on http://%s:%d' % (host, port))
+    # Under pythonw.exe there is no console: sys.stdout can be None, so guard print.
+    try:
+        if sys.stdout:
+            print('Scouts proxy running on http://%s:%d' % (host, port))
+    except Exception:
+        pass
     ThreadingHTTPServer((host, port), H).serve_forever()
