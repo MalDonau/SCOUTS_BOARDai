@@ -1284,7 +1284,7 @@ async function genImage(provider,prompt,baseImages,refImages,ar){
   let txt=prompt;
   txt+=`\n\nAspect ratio: ${ar}${ar==='16:9'?' (wide landscape)':' (square)'}. Compose the full image for this aspect ratio.`;
   // OpenAI image sizes: square vs the closest wide size the API accepts
-  const oaSize=ar==='16:9'?'1536x1024':'1024x1024';
+  const oaSize=ar==='16:9'?'1536x864':'1024x1024';
   if(allImages.length){
     txt+=`\n\n[Image inputs] You are given ${allImages.length} reference image(s). Use them as strong visual references — draw on their subject, composition, colors and style to produce a result that fits the prompt. Do not ignore them.`;
   }
