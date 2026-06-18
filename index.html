@@ -236,6 +236,10 @@
   .pnode .pn-batch{width:42px;background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:8px;
     padding:4px 5px;font-family:var(--sans);font-weight:700;font-size:12px;text-align:center;cursor:text}
   .pnode .pn-batch:focus{outline:none;border-color:var(--purple)}
+  .pnode .pn-ar{display:inline-flex;gap:3px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:2px}
+  .pnode .pn-arb{background:none;border:none;color:var(--muted);border-radius:6px;padding:3px 7px;font-family:var(--sans);font-weight:700;font-size:11px;cursor:pointer}
+  .pnode .pn-arb:hover{color:var(--text)}
+  .pnode .pn-arb.on{background:var(--purple);color:#fff}
   .pnode .pn-load{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;color:var(--purple-lt);font-weight:600}
   .pnode .pn-err{font-size:11px;color:#ff7a70}
   .inode{width:230px;height:230px;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--panel-2);cursor:pointer}
@@ -911,7 +915,9 @@ function nodeInner(it){
   }
   if(it.type==='prompt'){
     const g=t.imgen;
-    const foot=`<div class="pn-foot"><input class="pn-batch" type="number" min="1" max="8" value="${it.batch||1}" data-batchid="${it.id}" title="${g.batch}"><button class="pn-gen" data-gen="gemini" data-genid="${it.id}">${g.gemini}</button><button class="pn-gen" data-gen="openai" data-genid="${it.id}">${g.openai}</button></div>`;
+    const ar=it.ar||'1:1';
+    const arRow=`<div class="pn-ar" title="Aspect ratio"><button class="pn-arb${ar==='1:1'?' on':''}" data-ar="1:1" data-arid="${it.id}">1:1</button><button class="pn-arb${ar==='16:9'?' on':''}" data-ar="16:9" data-arid="${it.id}">16:9</button></div>`;
+    const foot=`<div class="pn-foot">${arRow}<input class="pn-batch" type="number" min="1" max="8" value="${it.batch||1}" data-batchid="${it.id}" title="${g.batch}"><button class="pn-gen" data-gen="gemini" data-genid="${it.id}">${g.gemini}</button><button class="pn-gen" data-gen="openai" data-genid="${it.id}">${g.openai}</button></div>`;
     const pst=it.color?` style="border-color:${it.color};box-shadow:0 0 0 1px ${it.color}55"`:'';
     const tst=it.color?` style="color:${it.color}"`:'';
     return `<div class="pnode"${pst}><div class="pn-tag"${tst}>prompt</div><div class="pn-txt">${bEscape(it.text||'')}</div>${foot}</div>`;
@@ -1269,11 +1275,14 @@ function openaiApiModel(){
   if(/^(chat\s*gpt\s*-?\s*2|chatgpt2|gpt\s*image\s*2)$/i.test(v))return 'gpt-image-2';
   return v||'gpt-image-2';
 }
-async function genImage(provider,prompt,baseImages,refImages){
-  baseImages=baseImages||[];refImages=refImages||[];
+async function genImage(provider,prompt,baseImages,refImages,ar){
+  baseImages=baseImages||[];refImages=refImages||[];ar=ar||'1:1';
   const allImages=baseImages.concat(refImages);
   // all connected images are treated as strong references the model must use
   let txt=prompt;
+  txt+=`\n\nAspect ratio: ${ar}${ar==='16:9'?' (wide landscape)':' (square)'}. Compose the full image for this aspect ratio.`;
+  // OpenAI image sizes: square vs the closest wide size the API accepts
+  const oaSize=ar==='16:9'?'1536x1024':'1024x1024';
   if(allImages.length){
     txt+=`\n\n[Image inputs] You are given ${allImages.length} reference image(s). Use them as strong visual references — draw on their subject, composition, colors and style to produce a result that fits the prompt. Do not ignore them.`;
   }
@@ -1282,7 +1291,7 @@ async function genImage(provider,prompt,baseImages,refImages){
     if(allImages.length){
       // edits endpoint: send the connected images as inputs (image-to-image)
       const imgs=[];for(const src of allImages){try{const inl=await toInline(src);imgs.push(inl.data)}catch(e){}}
-      const res=await fetch('/openai_edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:cfg.openaiKey,model:openaiApiModel(),prompt:txt,size:'1024x1024',images:imgs})});
+      const res=await fetch('/openai_edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:cfg.openaiKey,model:openaiApiModel(),prompt:txt,size:oaSize,images:imgs})});
       const data=await res.json();
       if(!res.ok)throw new Error(openaiErr(data,res.status));
       const d=(data.data||[])[0]||{};
@@ -1290,7 +1299,7 @@ async function genImage(provider,prompt,baseImages,refImages){
       if(d.url)return d.url;
       throw new Error('OpenAI: no image returned');
     }
-    const body={model:openaiApiModel(),prompt:txt,size:'1024x1024'};
+    const body={model:openaiApiModel(),prompt:txt,size:oaSize};
     const res=await fetch('/openai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:cfg.openaiKey,body})});
     const data=await res.json();
     if(!res.ok)throw new Error(openaiErr(data,res.status));
@@ -1302,12 +1311,15 @@ async function genImage(provider,prompt,baseImages,refImages){
   if(!cfg.key)throw new Error(T[lang].imgen.noGem);
   const parts=[{text:txt}];
   for(const src of allImages){try{const inl=await toInline(src);parts.push({inline_data:{mime_type:inl.mime,data:inl.data}})}catch(e){}}
-  const body={contents:[{parts}],generationConfig:{responseModalities:['IMAGE']}};
+  const body={contents:[{parts}],generationConfig:{responseModalities:['IMAGE'],imageConfig:{aspectRatio:ar}}};
   let lastErr='Gemini: no image returned';
   for(let attempt=0;attempt<3;attempt++){
     const res=await fetch('/gemini',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:cfg.model,key:cfg.key,body})});
     const data=await res.json();
-    if(!res.ok){lastErr=(data&&data.error&&data.error.message)||('HTTP '+res.status);if(res.status>=500||res.status===429)continue;throw new Error(lastErr)}
+    if(!res.ok){lastErr=(data&&data.error&&data.error.message)||('HTTP '+res.status);
+      // some Gemini image model versions reject imageConfig — drop it and retry once
+      if(body.generationConfig.imageConfig&&/imageConfig|aspectRatio|Unknown name|Invalid JSON|Unknown field/i.test(lastErr)){delete body.generationConfig.imageConfig;continue;}
+      if(res.status>=500||res.status===429)continue;throw new Error(lastErr)}
     const rparts=(((data.candidates||[])[0]||{}).content||{}).parts||[];
     const ip=rparts.find(p=>p.inlineData||p.inline_data);
     if(ip){const inl=ip.inlineData||ip.inline_data;return `data:${inl.mimeType||inl.mime_type||'image/png'};base64,${inl.data}`;}
@@ -1330,12 +1342,14 @@ async function generateFromPrompt(id,provider){
   const {prompt,refImages,baseImages}=gatherGenInputs(it);
   const n=Math.max(1,Math.min(8,parseInt(it.batch)||1));
   const color=it.color||(it.color=nextGenColor());
+  const ar=it.ar||'1:1';
+  const dim=ar==='16:9'?{w:330,h:186}:{w:230,h:230};
   const phs=[];
-  for(let i=0;i<n;i++){const slot=freeImageSlot(it);const ph={id:bid(),type:'image',src:'',_loading:true,x:slot.x,y:slot.y,color,prov:provider};board.items.push(ph);phs.push(ph.id)}
+  for(let i=0;i<n;i++){const slot=freeImageSlot(it);const ph={id:bid(),type:'image',src:'',_loading:true,x:slot.x,y:slot.y,w:dim.w,h:dim.h,color,prov:provider};board.items.push(ph);phs.push(ph.id)}
   renderBoard();
   for(const phId of phs){
     try{
-      const durl=await genImage(provider,prompt,baseImages,refImages);
+      const durl=await genImage(provider,prompt,baseImages,refImages,ar);
       const ref=await storeBoardImage(durl);
       const ph=board.items.find(i=>i.id===phId);if(ph){ph.src=ref;delete ph._loading;saveBoard();renderBoard()}
     }catch(err){
@@ -1439,6 +1453,7 @@ boardVp.addEventListener('click',e=>{
   const d=e.target.closest('[data-bdel]');if(d){e.stopPropagation();removeItem(d.dataset.bdel);return}
   const g=e.target.closest('[data-gen]');if(g){e.stopPropagation();generateFromPrompt(g.dataset.genid,g.dataset.gen);return}
   const sp=e.target.closest('[data-setprov]');if(sp){e.stopPropagation();const it=board.items.find(i=>i.id===sp.dataset.setprov);if(it){it.prov=it.prov==='gemini'?'openai':it.prov==='openai'?'':'gemini';if(!it.prov)delete it.prov;saveBoard();renderBoard()}return}
+  const arb=e.target.closest('[data-ar]');if(arb){e.stopPropagation();const it=board.items.find(i=>i.id===arb.dataset.arid);if(it){it.ar=arb.dataset.ar;saveBoard();renderBoard()}return}
   const im=e.target.closest('[data-imgbig]');if(im){const it=board.items.find(i=>i.id===im.dataset.imgbig);if(it){const r=resolveImg(it.src);if(r)openLightbox(r);else if(isIdb(it.src))idbGet(idbId(it.src)).then(d=>{if(d){imgCache[idbId(it.src)]=d;openLightbox(d)}})}}
 });
 boardVp.addEventListener('input',e=>{const b=e.target.closest('[data-batchid]');if(b){const it=board.items.find(i=>i.id===b.dataset.batchid);if(it){it.batch=Math.max(1,Math.min(8,parseInt(b.value)||1));saveBoard()}}});
