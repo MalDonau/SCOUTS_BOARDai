@@ -4,6 +4,10 @@ import json, base64, time, os, mimetypes, urllib.request, urllib.error
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Optional password gate (HTTP Basic Auth). Set APP_PASSWORD env var on Vercel to enable.
+APP_USER = os.environ.get('APP_USER', 'scouts')
+APP_PASSWORD = os.environ.get('APP_PASSWORD', '')
+
 
 def forward(url, data, headers):
     r = urllib.request.Request(url, data=data, headers=headers, method='POST')
@@ -15,8 +19,28 @@ def forward(url, data, headers):
 
 
 class handler(BaseHTTPRequestHandler):
+    def _authed(self):
+        if not APP_PASSWORD:
+            return True
+        h = self.headers.get('Authorization', '')
+        if h.startswith('Basic '):
+            try:
+                u, p = base64.b64decode(h[6:]).decode('utf-8').split(':', 1)
+                return u == APP_USER and p == APP_PASSWORD
+            except Exception:
+                return False
+        return False
+
+    def _deny(self):
+        self.send_response(401)
+        self.send_header('WWW-Authenticate', 'Basic realm="Scouts Board"')
+        self.send_header('Content-Length', '0')
+        self.end_headers()
+
     # ---- serve the static frontend (index.html + assets) ----
     def do_GET(self):
+        if not self._authed():
+            return self._deny()
         path = urlparse(self.path).path
         if path in ('', '/'):
             path = '/index.html'
@@ -39,6 +63,8 @@ class handler(BaseHTTPRequestHandler):
 
     # ---- proxy to the AI APIs (POST) ----
     def do_POST(self):
+        if not self._authed():
+            return self._deny()
         ep = parse_qs(urlparse(self.path).query).get('endpoint', [''])[0]
         length = int(self.headers.get('Content-Length', 0))
         raw = self.rfile.read(length) if length else b'{}'
