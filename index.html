@@ -817,7 +817,7 @@ function renderSettings(){
       <label class="setlbl">${s.openaiKey}</label>
       <input class="setinput" id="setOpenaiKey" type="password" placeholder="${s.openaiKeyPh}" value="${cfg.openaiKey.replace(/"/g,'&quot;')}">
       <label class="setlbl">${s.openaiModel}</label>
-      <input class="setinput" id="setOpenaiModel" type="text" value="${cfg.openaiModel}">
+      <input class="setinput" id="setOpenaiModel" type="text" value="${openaiApiModel()}">
       <label class="setlbl">${s.tpl}</label>
       <div class="tplrow"><img class="tplprev" src="${cfg.tpl}" alt=""><button class="dl ghost" id="tplBtn">${s.tplReplace}</button></div>
       <div style="margin-top:18px"><button class="genbtn" id="setSave">${s.save}</button><span id="setMsg" class="setmsg"></span></div>
@@ -1262,6 +1262,13 @@ function openaiErr(data,status){
   if(/billing|quota|limit/i.test(code+' '+msg))msg+=' → Revisá saldo y límite mensual en platform.openai.com (Settings → Billing/Limits).';
   return msg;
 }
+/* Map friendly nicknames to the real OpenAI image model id. "chatgpt2" is a
+   nickname, not a valid API model — the real id is gpt-image-2. */
+function openaiApiModel(){
+  const v=(cfg.openaiModel||'').trim();
+  if(/^(chat\s*gpt\s*-?\s*2|chatgpt2|gpt\s*image\s*2)$/i.test(v))return 'gpt-image-2';
+  return v||'gpt-image-2';
+}
 async function genImage(provider,prompt,baseImages,refImages){
   baseImages=baseImages||[];refImages=refImages||[];
   const allImages=baseImages.concat(refImages);
@@ -1275,7 +1282,7 @@ async function genImage(provider,prompt,baseImages,refImages){
     if(allImages.length){
       // edits endpoint: send the connected images as inputs (image-to-image)
       const imgs=[];for(const src of allImages){try{const inl=await toInline(src);imgs.push(inl.data)}catch(e){}}
-      const res=await fetch('/openai_edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:cfg.openaiKey,model:cfg.openaiModel,prompt:txt,size:'1024x1024',images:imgs})});
+      const res=await fetch('/openai_edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:cfg.openaiKey,model:openaiApiModel(),prompt:txt,size:'1024x1024',images:imgs})});
       const data=await res.json();
       if(!res.ok)throw new Error(openaiErr(data,res.status));
       const d=(data.data||[])[0]||{};
@@ -1283,7 +1290,7 @@ async function genImage(provider,prompt,baseImages,refImages){
       if(d.url)return d.url;
       throw new Error('OpenAI: no image returned');
     }
-    const body={model:cfg.openaiModel,prompt:txt,size:'1024x1024'};
+    const body={model:openaiApiModel(),prompt:txt,size:'1024x1024'};
     const res=await fetch('/openai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:cfg.openaiKey,body})});
     const data=await res.json();
     if(!res.ok)throw new Error(openaiErr(data,res.status));
