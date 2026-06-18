@@ -1351,10 +1351,12 @@ async function generateFromPrompt(id,provider){
   renderBoard();
   for(const phId of phs){
     try{
-      let durl=await genImage(provider,prompt,baseImages,refImages,ar);
-      if(ar==='16:9')durl=await resizeCover(durl,1920,1080);
+      const durl=await genImage(provider,prompt,baseImages,refImages,ar);
       const ref=await storeBoardImage(durl);
-      const ph=board.items.find(i=>i.id===phId);if(ph){ph.src=ref;delete ph._loading;saveBoard();renderBoard()}
+      // size the board node to the real generated aspect (no visual crop)
+      const d=await imgDims(durl);const MAX=300;let w=d.w,h=d.h;
+      if(w>=h){if(w>MAX){h=Math.round(h*MAX/w);w=MAX}}else{if(h>MAX){w=Math.round(w*MAX/h);h=MAX}}
+      const ph=board.items.find(i=>i.id===phId);if(ph){ph.src=ref;ph.w=w;ph.h=h;delete ph._loading;saveBoard();renderBoard()}
     }catch(err){
       const ph=board.items.find(i=>i.id===phId);if(ph){delete ph._loading;ph._err=String(err&&err.message||err);renderBoard();
         setTimeout(()=>{board.items=board.items.filter(z=>z.id!==phId);renderBoard()},5000)}
@@ -1365,19 +1367,6 @@ async function generateFromPrompt(id,provider){
 /* ---- Drag & drop external images onto the board (keeps aspect ratio) ---- */
 function readDataURL(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)})}
 function imgDims(src){return new Promise(res=>{const im=new Image();im.onload=()=>res({w:im.naturalWidth,h:im.naturalHeight});im.onerror=()=>res({w:240,h:240});im.src=src})}
-/* Resize/crop a dataURL to exactly tw x th (cover: fill the frame, center-crop overflow). */
-function resizeCover(dataURL,tw,th){return new Promise(res=>{
-  const im=new Image();
-  im.onload=()=>{try{
-    const cnv=document.createElement('canvas');cnv.width=tw;cnv.height=th;
-    const ctx=cnv.getContext('2d');
-    const s=Math.max(tw/im.width,th/im.height),dw=im.width*s,dh=im.height*s;
-    ctx.drawImage(im,(tw-dw)/2,(th-dh)/2,dw,dh);
-    res(cnv.toDataURL('image/png'));
-  }catch(e){res(dataURL)}};
-  im.onerror=()=>res(dataURL);
-  im.src=dataURL;
-})}
 async function dropImages(files,wx,wy){
   const arr=[...files].filter(f=>f.type.startsWith('image/'));
   for(const f of arr){
