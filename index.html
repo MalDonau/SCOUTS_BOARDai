@@ -1166,27 +1166,30 @@ async function resolveToBytes(it){
   const m=/^data:image\/([a-z0-9.+-]+)/i.exec(durl);const ext=m?m[1].toLowerCase().replace('jpeg','jpg'):'png';
   return {ext,bytes:dataURLtoBytes(durl)};
 }
+function boardToast(msg){let t=document.getElementById('boardToast');if(!t){t=document.createElement('div');t.id='boardToast';t.style.cssText='position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:#16161f;color:#fff;border:1px solid #7D2EFF;padding:10px 16px;border-radius:10px;z-index:99999;font-size:13px;font-weight:600;box-shadow:0 8px 28px rgba(0,0,0,.55);transition:opacity .4s;max-width:80vw;text-align:center';document.body.appendChild(t)}t.textContent=msg;t.style.opacity='1';clearTimeout(t._h);t._h=setTimeout(()=>{t.style.opacity='0'},4000)}
 async function downloadSelectedImages(){
   const imgs=selectedImages();if(!imgs.length)return;
   const files=[];let idx=1;
   for(const it of imgs){const r=await resolveToBytes(it);if(r)files.push({name:`scouts-${String(idx++).padStart(2,'0')}.${r.ext}`,data:r.bytes})}
-  if(!files.length)return;
+  if(!files.length){alert('No hay imágenes válidas para descargar (puede que la fuente sea una URL remota y no datos inline).');return}
   // Preferred: let the user choose the destination folder, save each file there (no zip)
   if(window.showDirectoryPicker){
     let dir=null;
-    try{dir=await showDirectoryPicker({id:'scouts-dl',mode:'readwrite',startIn:'downloads'})}
+    try{dir=await showDirectoryPicker({mode:'readwrite'})}
     catch(e){if(e&&e.name==='AbortError')return; dir=null}
     if(dir){
-      try{
-        if(dir.requestPermission){const p=await dir.requestPermission({mode:'readwrite'});if(p!=='granted')throw new Error('permiso de escritura denegado')}
-        let saved=0;
-        for(const f of files){const fh=await dir.getFileHandle(f.name,{create:true});const w=await fh.createWritable();await w.write(new Blob([f.data]));await w.close();saved++}
-        return;
-      }catch(e){alert('No se pudo guardar en la carpeta elegida:\n'+(e&&e.message||e)+'\n\nLas descargo a la carpeta de Descargas.')}
+      let saved=0,firstErr=null;
+      try{if(dir.requestPermission){const p=await dir.requestPermission({mode:'readwrite'});if(p!=='granted')throw new Error('permiso de escritura denegado (elegí "Permitir / Allow" al abrir la carpeta)')}}catch(e){firstErr=e}
+      if(!firstErr){
+        for(const f of files){try{const fh=await dir.getFileHandle(f.name,{create:true});const w=await fh.createWritable();await w.write(new Blob([f.data]));await w.close();saved++}catch(e){if(!firstErr)firstErr=e}}
+      }
+      if(saved>0){boardToast(`✓ ${saved} imagen${saved>1?'es':''} guardada${saved>1?'s':''} en «${dir.name||'la carpeta'}»`);return}
+      alert('No se pudo guardar en la carpeta:\n\n'+(firstErr&&firstErr.message||firstErr||'error desconocido')+'\n\nVoy a descargarlas a la carpeta de Descargas.');
     }
   }
   // Fallback (no FS access / write failed): download each file to the default Downloads folder
   for(const f of files){triggerDownload(new Blob([f.data]),f.name);await new Promise(r=>setTimeout(r,300))}
+  boardToast('Descargando a la carpeta de Descargas…');
 }
 
 /* ============ Board chat (Claude → prompt nodes) ============ */
