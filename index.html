@@ -1290,25 +1290,25 @@ async function genImage(provider,prompt,baseImages,refImages,ar){
   }
   if(provider==='openai'){
     if(!cfg.openaiKey)throw new Error(T[lang].imgen.noOai);
-    if(allImages.length){
-      // edits endpoint: send the connected images as inputs (image-to-image)
-      const imgs=[];for(const src of allImages){try{const inl=await toInline(src);imgs.push(inl.data)}catch(e){}}
-      const res=await fetch('/openai_edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:cfg.openaiKey,model:openaiApiModel(),prompt:txt,size:oaSize,images:imgs})});
+    let imgs=null;
+    const doFetch=async()=>{
+      if(allImages.length){
+        if(!imgs){imgs=[];for(const src of allImages){try{const inl=await toInline(src);imgs.push(inl.data)}catch(e){}}}
+        return fetch('/openai_edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:cfg.openaiKey,model:openaiApiModel(),prompt:txt,size:oaSize,images:imgs})});
+      }
+      return fetch('/openai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:cfg.openaiKey,body:{model:openaiApiModel(),prompt:txt,size:oaSize}})});
+    };
+    let lastErr='OpenAI: no image returned';
+    for(let attempt=0;attempt<3;attempt++){
+      const res=await doFetch();
       const data=await res.json();
-      if(!res.ok)throw new Error(openaiErr(data,res.status));
+      if(!res.ok){lastErr=openaiErr(data,res.status);if(res.status>=500||res.status===429){await new Promise(r=>setTimeout(r,900));continue}throw new Error(lastErr)}
       const d=(data.data||[])[0]||{};
       if(d.b64_json)return 'data:image/png;base64,'+d.b64_json;
       if(d.url)return d.url;
-      throw new Error('OpenAI: no image returned');
+      lastErr='OpenAI: no image returned';await new Promise(r=>setTimeout(r,600));
     }
-    const body={model:openaiApiModel(),prompt:txt,size:oaSize};
-    const res=await fetch('/openai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:cfg.openaiKey,body})});
-    const data=await res.json();
-    if(!res.ok)throw new Error(openaiErr(data,res.status));
-    const d=(data.data||[])[0]||{};
-    if(d.b64_json)return 'data:image/png;base64,'+d.b64_json;
-    if(d.url)return d.url;
-    throw new Error('OpenAI: no image returned');
+    throw new Error(lastErr);
   }
   if(!cfg.key)throw new Error(T[lang].imgen.noGem);
   const parts=[{text:txt}];
@@ -1358,8 +1358,8 @@ async function generateFromPrompt(id,provider){
       if(w>=h){if(w>MAX){h=Math.round(h*MAX/w);w=MAX}}else{if(h>MAX){w=Math.round(w*MAX/h);h=MAX}}
       const ph=board.items.find(i=>i.id===phId);if(ph){ph.src=ref;ph.w=w;ph.h=h;delete ph._loading;saveBoard();renderBoard()}
     }catch(err){
-      const ph=board.items.find(i=>i.id===phId);if(ph){delete ph._loading;ph._err=String(err&&err.message||err);renderBoard();
-        setTimeout(()=>{board.items=board.items.filter(z=>z.id!==phId);renderBoard()},5000)}
+      // keep the error node visible (don't auto-remove) so the message is readable; close it with the ×
+      const ph=board.items.find(i=>i.id===phId);if(ph){delete ph._loading;ph._err=String(err&&err.message||err);saveBoard();renderBoard()}
     }
   }
 }
