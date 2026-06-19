@@ -125,11 +125,15 @@ class H(SimpleHTTPRequestHandler):
                 model = str(req.get('model', 'gpt-image-2'))
                 prompt = str(req.get('prompt', ''))
                 size = str(req.get('size', '1024x1024'))
+                fidelity = str(req.get('input_fidelity', '')).strip()
                 images = req.get('images', []) or []
                 boundary = '----scoutsboundary%d' % int(time.time() * 1000)
                 bnd = ('--' + boundary).encode()
                 body = b''
-                for name, value in (('model', model), ('prompt', prompt), ('size', size)):
+                fields = [('model', model), ('prompt', prompt), ('size', size)]
+                if fidelity:
+                    fields.append(('input_fidelity', fidelity))
+                for name, value in fields:
                     body += bnd + b'\r\n'
                     body += ('Content-Disposition: form-data; name="%s"\r\n\r\n' % name).encode()
                     body += value.encode('utf-8') + b'\r\n'
